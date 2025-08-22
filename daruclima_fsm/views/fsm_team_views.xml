@@ -1,0 +1,182 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <data>
+
+        <!-- Vista de árbol para equipos FSM -->
+        <record id="view_daruclima_fsm_team_tree" model="ir.ui.view">
+            <field name="name">daruclima.fsm.team.tree</field>
+            <field name="model">daruclima.fsm.team</field>
+            <field name="arch" type="xml">
+                <list string="Equipos FSM">
+                    <field name="sequence" widget="handle"/>
+                    <field name="name"/>
+                    <field name="code"/>
+                    <field name="leader_id"/>
+                    <field name="order_count"/>
+                    <field name="order_active_count"/>
+                    <field name="active"/>
+                </list>
+            </field>
+        </record>
+
+        <!-- Vista de formulario para equipos FSM -->
+        <record id="view_daruclima_fsm_team_form" model="ir.ui.view">
+            <field name="name">daruclima.fsm.team.form</field>
+            <field name="model">daruclima.fsm.team</field>
+            <field name="arch" type="xml">
+                <form string="Equipo FSM">
+                    <sheet>
+                        <div class="oe_button_box" name="button_box">
+                            <button name="action_view_orders" type="object"
+                                    class="oe_stat_button" icon="fa-tasks">
+                                <field name="order_count" widget="statinfo" string="Órdenes"/>
+                            </button>
+                        </div>
+
+                        <div class="oe_title">
+                            <h1>
+                                <field name="name" required="1"/>
+                            </h1>
+                        </div>
+
+                        <group>
+                            <group>
+                                <field name="code" required="1"/>
+                                <field name="leader_id"/>
+                                <field name="sequence"/>
+                            </group>
+                            <group>
+                                <field name="active"/>
+                                <field name="color" widget="color"/>
+                                <field name="company_id" groups="base.group_multi_company"/>
+                            </group>
+                        </group>
+
+                        <group string="Descripción">
+                            <field name="description" nolabel="1"/>
+                        </group>
+
+                        <notebook>
+                            <page string="Miembros del Equipo">
+                                <field name="person_ids">
+                                    <list>
+                                        <field name="name"/>
+                                        <field name="employee_id"/>
+                                        <field name="phone"/>
+                                        <field name="mobile"/>
+                                        <field name="is_available"/>
+                                    </list>
+                                </field>
+                            </page>
+                            <page string="Territorios">
+                                <field name="territory_ids" widget="many2many_tags"/>
+                            </page>
+                        </notebook>
+                    </sheet>
+                </form>
+            </field>
+        </record>
+
+        <!-- Acción para equipos FSM -->
+        <record id="action_daruclima_fsm_team" model="ir.actions.act_window">
+            <field name="name">Equipos FSM</field>
+            <field name="res_model">daruclima.fsm.team</field>
+            <field name="view_mode">list,form</field>
+        </record>
+
+        <!-- Vista de formulario para técnicos FSM -->
+        <record id="view_daruclima_fsm_person_form" model="ir.ui.view">
+            <field name="name">daruclima.fsm.person.form</field>
+            <field name="model">daruclima.fsm.person</field>
+            <field name="arch" type="xml">
+                <form string="Técnico FSM">
+                    <sheet>
+                        <div class="oe_button_box" name="button_box">
+                            <button name="action_view_orders" type="object"
+                                    class="oe_stat_button" icon="fa-tasks">
+                                <field name="order_count" widget="statinfo" string="Órdenes"/>
+                            </button>
+                            <button name="action_view_schedule" type="object"
+                                    class="oe_stat_button" icon="fa-calendar">
+                                <div class="o_field_widget o_stat_info">
+                                    <span class="o_stat_text">Agenda</span>
+                                </div>
+                            </button>
+                        </div>
+
+                        <div class="oe_title">
+                            <h1>
+                                <field name="name" required="1"/>
+                            </h1>
+                        </div>
+
+                        <group>
+                            <group>
+                                <field name="employee_id" required="1"/>
+                                <field name="user_id" readonly="1"/>
+                                <field name="team_id"/>
+                            </group>
+                            <group>
+                                <field name="phone"/>
+                                <field name="mobile"/>
+                                <field name="email"/>
+                                <field name="is_available"/>
+                                <field name="active"/>
+                            </group>
+                        </group>
+
+                        <notebook>
+                            <page string="Especialidades">
+                                <group>
+                                    <field name="skill_ids" widget="many2many_tags"/>
+                                    <field name="category_ids" widget="many2many_tags"/>
+                                </group>
+                            </page>
+                            <page string="Estadísticas">
+                                <group>
+                                    <group>
+                                        <field name="order_active_count"/>
+                                        <field name="order_completed_count"/>
+                                        <field name="hours_total"/>
+                                    </group>
+                                </group>
+                            </page>
+                            <page string="Ubicación">
+                                <group>
+                                    <field name="partner_latitude"/>
+                                    <field name="partner_longitude"/>
+                                </group>
+                            </page>
+                        </notebook>
+                    </sheet>
+                </form>
+            </field>
+        </record>
+
+        <!-- Vista de árbol para técnicos FSM -->
+        <record id="view_daruclima_fsm_person_tree" model="ir.ui.view">
+            <field name="name">daruclima.fsm.person.tree</field>
+            <field name="model">daruclima.fsm.person</field>
+            <field name="arch" type="xml">
+                <list string="Técnicos FSM">
+                    <field name="name"/>
+                    <field name="employee_id"/>
+                    <field name="team_id"/>
+                    <field name="phone"/>
+                    <field name="mobile"/>
+                    <field name="is_available"/>
+                    <field name="order_active_count"/>
+                    <field name="active"/>
+                </list>
+            </field>
+        </record>
+
+        <!-- Acción para técnicos FSM -->
+        <record id="action_daruclima_fsm_person" model="ir.actions.act_window">
+            <field name="name">Técnicos FSM</field>
+            <field name="res_model">daruclima.fsm.person</field>
+            <field name="view_mode">list,form</field>
+        </record>
+
+    </data>
+</odoo>
