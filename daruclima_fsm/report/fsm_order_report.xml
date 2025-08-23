@@ -69,12 +69,12 @@
                                     <strong>Prioridad:</strong>
                                 </div>
                                 <div class="col-6">
-                                    <t t-if="doc.priority == '0'">Muy Baja</t>
-                                    <t t-if="doc.priority == '1'">Baja</t>
-                                    <t t-if="doc.priority == '2'">Normal</t>
-                                    <t t-if="doc.priority == '3'">Alta</t>
-                                    <t t-if="doc.priority == '4'">Muy Alta</t>
-                                    <t t-if="doc.priority == '5'">Urgente</t>
+                                    <t t-if="doc.priority_level == '0'">Muy Baja</t>
+                                    <t t-if="doc.priority_level == '1'">Baja</t>
+                                    <t t-if="doc.priority_level == '2'">Normal</t>
+                                    <t t-if="doc.priority_level == '3'">Alta</t>
+                                    <t t-if="doc.priority_level == '4'">Muy Alta</t>
+                                    <t t-if="doc.priority_level == '5'">Urgente</t>
                                 </div>
                             </div>
                         </div>
@@ -115,11 +115,8 @@
 
                     <!-- Información del equipo y técnicos -->
                     <div class="row mt16 mb16">
-                        <div class="col-6" t-if="doc.team_id or doc.responsible_id">
+                        <div class="col-6" t-if="doc.responsible_id or doc.person_ids">
                             <h5>Equipo de Trabajo</h5>
-                            <div t-if="doc.team_id">
-                                <strong>Equipo:</strong> <span t-field="doc.team_id"/>
-                            </div>
                             <div t-if="doc.responsible_id">
                                 <strong>Técnico Responsable:</strong> <span t-field="doc.responsible_id"/>
                             </div>
@@ -131,16 +128,8 @@
                                 </t>
                             </div>
                         </div>
-                        <div class="col-6" t-if="doc.equipment_ids or doc.tag_ids">
-                            <h5>Equipos y Etiquetas</h5>
-                            <div t-if="doc.equipment_ids">
-                                <strong>Equipos a Revisar:</strong>
-                                <ul>
-                                    <t t-foreach="doc.equipment_ids" t-as="equipment">
-                                        <li><span t-field="equipment.name"/></li>
-                                    </t>
-                                </ul>
-                            </div>
+                        <div class="col-6" t-if="doc.tag_ids">
+                            <h5>Etiquetas</h5>
                             <div t-if="doc.tag_ids">
                                 <strong>Etiquetas:</strong>
                                 <t t-foreach="doc.tag_ids" t-as="tag">
@@ -148,55 +137,6 @@
                                     <t t-if="not tag_last">, </t>
                                 </t>
                             </div>
-                        </div>
-                    </div>
-
-                    <!-- Materiales utilizados -->
-                    <div class="row mt16 mb16" t-if="doc.material_ids">
-                        <div class="col-12">
-                            <h4>Materiales Utilizados</h4>
-                            <table class="table table-sm o_main_table">
-                                <thead>
-                                    <tr>
-                                        <th name="th_description" class="text-left">Producto</th>
-                                        <th name="th_quantity" class="text-right">Cantidad</th>
-                                        <th name="th_price_unit" class="text-right">Costo Unitario</th>
-                                        <th name="th_amount" class="text-right">Total</th>
-                                    </tr>
-                                </thead>
-                                <tbody class="sale_tbody">
-                                    <t t-foreach="doc.material_ids" t-as="material">
-                                        <tr>
-                                            <td name="account_invoice_line_name">
-                                                <span t-field="material.product_id"/>
-                                            </td>
-                                            <td name="account_invoice_line_quantity" class="text-right">
-                                                <span t-field="material.quantity"/>
-                                            </td>
-                                            <td name="account_invoice_line_price_unit" class="text-right">
-                                                <span t-field="material.cost_unit"/>
-                                            </td>
-                                            <td name="account_invoice_line_price_subtotal" class="text-right">
-                                                <span t-field="material.cost_total"/>
-                                            </td>
-                                        </tr>
-                                    </t>
-                                </tbody>
-                            </table>
-                        </div>
-                    </div>
-
-                    <!-- Totales -->
-                    <div class="row" t-if="doc.material_ids">
-                        <div class="col-4 ml-auto">
-                            <table class="table table-sm">
-                                <tr class="border-black">
-                                    <td><strong>Total Materiales</strong></td>
-                                    <td class="text-right">
-                                        <span t-field="doc.total_cost"/>
-                                    </td>
-                                </tr>
-                            </table>
                         </div>
                     </div>
 
