@@ -79,13 +79,5 @@
             <field name="color">1</field>
         </record>
 
-        <!-- Equipo por defecto -->
-        <record id="fsm_team_default" model="daruclima.fsm.team">
-            <field name="name">Equipo Principal</field>
-            <field name="code">MAIN</field>
-            <field name="sequence">1</field>
-            <field name="description">Equipo principal de servicios de campo</field>
-        </record>
-
     </data>
 </odoo>

@@ -41,13 +41,14 @@ de trabajo en una sola aplicación compacta.
         'data/fsm_sequence.xml',
         'data/mail_template_data.xml',
 
+        # Reports
+        'report/fsm_order_report.xml',
+
         # Actions (cargar antes de las vistas)
         'views/fsm_actions.xml',
 
         # Views con acciones (cargar antes del menú)
         'views/fsm_order_views.xml',
-        'views/fsm_team_views.xml',
-        'views/fsm_location_views.xml',
         'views/fsm_stage_views.xml',
         'views/fsm_tag_views.xml',
 

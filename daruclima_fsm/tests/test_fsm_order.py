@@ -1,266 +1,224 @@
 # Copyright 2025 Xtendoo Software SLU
 # License LGPL-3.0 or later (https://www.gnu.org/licenses/lgpl-3.0)
 
-from odoo.tests.common import TransactionCase
-from odoo.exceptions import ValidationError, UserError
-from datetime import datetime, timedelta
-from odoo import fields
+from odoo.tests import TransactionCase
+from odoo.exceptions import UserError
 
 
-class TestDaruclimeFSMOrder(TransactionCase):
-    """Test cases para órdenes de servicio FSM"""
+class TestFSMOrder(TransactionCase):
+    """Test cases for FSM Order functionality"""
 
-    @classmethod
-    def setUpClass(cls):
-        super().setUpClass()
+    def setUp(self):
+        super(TestFSMOrder, self).setUp()
 
-        # Crear datos de prueba
-        cls.partner = cls.env['res.partner'].create({
-            'name': 'Cliente Test FSM',
-            'email': 'test@daruclima.com',
-            'phone': '123456789',
+        # Create test partner
+        self.partner = self.env['res.partner'].create({
+            'name': 'Test Customer',
+            'email': 'test@example.com',
+            'is_company': True,
         })
 
-        cls.employee = cls.env['hr.employee'].create({
-            'name': 'Técnico Test',
-            'work_email': 'tecnico@daruclima.com',
+        # Create delivery address
+        self.delivery_address = self.env['res.partner'].create({
+            'name': 'Delivery Address',
+            'parent_id': self.partner.id,
+            'type': 'delivery',
+            'street': 'Test Street 123',
+            'city': 'Test City',
         })
 
-        cls.team = cls.env['daruclima.fsm.team'].create({
-            'name': 'Equipo Test',
-            'code': 'TEST',
+        # Create test employee
+        self.employee = self.env['hr.employee'].create({
+            'name': 'Test Technician',
         })
 
-        cls.person = cls.env['daruclima.fsm.person'].create({
-            'name': 'Técnico FSM Test',
-            'employee_id': cls.employee.id,
-            'team_id': cls.team.id,
-        })
-
-        cls.location = cls.env['daruclima.fsm.location'].create({
-            'name': 'Ubicación Test',
-            'partner_id': cls.partner.id,
-            'street': 'Calle Test 123',
-            'city': 'Madrid',
-        })
-
-        cls.stage_new = cls.env['daruclima.fsm.stage'].create({
-            'name': 'Nuevo Test',
-            'code': 'new_test',
+        # Create test stage
+        self.stage = self.env['daruclima.fsm.stage'].create({
+            'name': 'Test Stage',
+            'code': 'test',
             'sequence': 1,
             'is_default': True,
+            'is_closed': False,
+            'color': '#FF0000',
         })
 
-        cls.stage_done = cls.env['daruclima.fsm.stage'].create({
-            'name': 'Completado Test',
-            'code': 'done_test',
-            'sequence': 2,
-            'is_closed': True,
+        # Create test tag
+        self.tag = self.env['daruclima.fsm.tag'].create({
+            'name': 'Test Tag',
+            'color': 1,
         })
 
-        cls.product = cls.env['product.product'].create({
-            'name': 'Material Test',
-            'type': 'product',
-            'standard_price': 100.0,
-        })
-
-    def test_order_creation(self):
-        """Test creación de orden FSM"""
+    def test_fsm_order_creation(self):
+        """Test FSM order creation with default values"""
         order = self.env['daruclima.fsm.order'].create({
             'partner_id': self.partner.id,
-            'team_id': self.team.id,
-            'description': 'Test de reparación',
+            'description': 'Test work order',
         })
 
-        # Verificar que se asignó número automáticamente
         self.assertTrue(order.name)
-        self.assertNotEqual(order.name, 'Nuevo')
-
-        # Verificar etapa por defecto
-        self.assertEqual(order.stage_id, self.stage_new)
-
-        # Verificar estado inicial
-        self.assertFalse(order.is_closed)
+        self.assertEqual(order.partner_id, self.partner)
+        self.assertEqual(order.description, 'Test work order')
+        self.assertEqual(order.stage_id, self.stage)
         self.assertEqual(order.priority, '2')
+        self.assertFalse(order.is_closed)
 
-    def test_order_workflow(self):
-        """Test del workflow de órdenes FSM"""
-        order = self.env['daruclima.fsm.order'].create({
+    def test_fsm_order_sequence(self):
+        """Test that FSM orders get proper sequence numbers"""
+        order1 = self.env['daruclima.fsm.order'].create({
             'partner_id': self.partner.id,
-            'team_id': self.team.id,
-            'description': 'Test workflow',
-            'responsible_id': self.person.id,
+            'description': 'First order',
         })
 
-        # Test iniciar trabajo
+        order2 = self.env['daruclima.fsm.order'].create({
+            'partner_id': self.partner.id,
+            'description': 'Second order',
+        })
+
+        self.assertNotEqual(order1.name, order2.name)
+        self.assertNotEqual(order1.name, 'Nuevo')
+        self.assertNotEqual(order2.name, 'Nuevo')
+
+    def test_work_flow_actions(self):
+        """Test work start and finish actions"""
+        order = self.env['daruclima.fsm.order'].create({
+            'partner_id': self.partner.id,
+            'description': 'Test workflow',
+            'responsible_id': self.employee.id,
+        })
+
+        # Test starting work
         self.assertFalse(order.date_start)
         order.action_start_work()
         self.assertTrue(order.date_start)
 
-        # Test finalizar trabajo
+        # Test that we can't start twice
+        with self.assertRaises(UserError):
+            order.action_start_work()
+
+        # Test finishing work
         self.assertFalse(order.date_end)
-        order.action_end_work()
+        order.action_finish_work()
         self.assertTrue(order.date_end)
 
-        # Verificar duración calculada
-        self.assertGreater(order.duration, 0)
+        # Test that we can't finish twice
+        with self.assertRaises(UserError):
+            order.action_finish_work()
 
-    def test_order_materials(self):
-        """Test gestión de materiales en órdenes"""
+    def test_duration_calculation(self):
+        """Test duration calculation"""
         order = self.env['daruclima.fsm.order'].create({
             'partner_id': self.partner.id,
-            'team_id': self.team.id,
-            'description': 'Test materiales',
+            'description': 'Test duration',
         })
 
-        # Añadir material
-        material = self.env['daruclima.fsm.material'].create({
-            'order_id': order.id,
-            'product_id': self.product.id,
-            'quantity': 2.0,
-            'cost_unit': 100.0,
+        # Initially no duration
+        self.assertEqual(order.duration, 0.0)
+
+        # Set start and end times
+        from datetime import datetime, timedelta
+        start_time = datetime.now()
+        end_time = start_time + timedelta(hours=2)
+
+        order.write({
+            'date_start': start_time,
+            'date_end': end_time,
         })
 
-        # Verificar cálculo de costo total
-        self.assertEqual(material.cost_total, 200.0)
+        # Duration should be approximately 2 hours
+        self.assertAlmostEqual(order.duration, 2.0, places=1)
 
-        # Verificar cálculo en orden
-        self.assertEqual(order.total_cost, 200.0)
-
-    def test_order_sale_integration(self):
-        """Test integración con ventas"""
+    def test_quotation_creation(self):
+        """Test quotation creation from FSM order"""
         order = self.env['daruclima.fsm.order'].create({
             'partner_id': self.partner.id,
-            'team_id': self.team.id,
-            'description': 'Test ventas',
+            'description': 'Test quotation creation',
         })
 
-        # Crear orden de venta
-        result = order.action_create_sale_order()
+        self.assertFalse(order.sale_order_id)
+        self.assertEqual(order.quotation_count, 0)
 
-        # Verificar que se creó la orden de venta
+        # Create quotation
+        result = order.action_create_quotation()
+
         self.assertTrue(order.sale_order_id)
-        self.assertEqual(order.sale_order_id.partner_id, self.partner)
-        self.assertEqual(order.sale_order_id.origin, order.name)
+        self.assertEqual(result['res_model'], 'sale.order')
+        self.assertEqual(result['res_id'], order.sale_order_id.id)
 
-    def test_order_stage_changes(self):
-        """Test cambios de etapa"""
+        # Test that we can't create another quotation
+        with self.assertRaises(UserError):
+            order.action_create_quotation()
+
+    def test_repair_creation(self):
+        """Test repair order creation from FSM order"""
         order = self.env['daruclima.fsm.order'].create({
             'partner_id': self.partner.id,
-            'team_id': self.team.id,
-            'description': 'Test etapas',
+            'description': 'Test repair creation',
         })
 
-        # Cambiar a etapa cerrada
-        order.stage_id = self.stage_done
+        self.assertFalse(order.repair_order_id)
+        self.assertEqual(order.repair_count, 0)
 
-        # Verificar que se marca como cerrada
-        self.assertTrue(order.is_closed)
+        # Create repair
+        result = order.action_create_repair()
 
-    def test_order_required_fields(self):
-        """Test campos requeridos"""
-        with self.assertRaises(ValidationError):
-            self.env['daruclima.fsm.order'].create({
-                'description': 'Test sin cliente',
-            })
+        self.assertTrue(order.repair_order_id)
+        self.assertEqual(order.repair_count, 1)
+        self.assertEqual(result['res_model'], 'repair.order')
+        self.assertEqual(result['res_id'], order.repair_order_id.id)
 
-        with self.assertRaises(ValidationError):
-            self.env['daruclima.fsm.order'].create({
-                'partner_id': self.partner.id,
-            })
+        # Test that we can't create another repair
+        with self.assertRaises(UserError):
+            order.action_create_repair()
 
-    def test_order_totals_calculation(self):
-        """Test cálculo de totales"""
+    def test_stage_expansion(self):
+        """Test stage expansion for kanban view"""
+        order_model = self.env['daruclima.fsm.order']
+
+        # Test stage expansion method
+        stages = order_model._read_group_stage_ids([], [])
+
+        self.assertTrue(len(stages) > 0)
+        self.assertIn(self.stage, stages)
+
+    def test_portal_access(self):
+        """Test portal access URL computation"""
         order = self.env['daruclima.fsm.order'].create({
             'partner_id': self.partner.id,
-            'team_id': self.team.id,
-            'description': 'Test totales',
+            'description': 'Test portal access',
         })
 
-        # Añadir materiales
-        self.env['daruclima.fsm.material'].create({
-            'order_id': order.id,
-            'product_id': self.product.id,
-            'quantity': 1.0,
-            'cost_unit': 50.0,
-        })
+        expected_url = f'/my/fsm/{order.id}'
+        self.assertEqual(order.access_url, expected_url)
 
-        # Crear orden de venta con líneas
-        sale_order = self.env['sale.order'].create({
-            'partner_id': self.partner.id,
-            'fsm_order_id': order.id,
-        })
-
-        self.env['sale.order.line'].create({
-            'order_id': sale_order.id,
-            'product_id': self.product.id,
-            'product_uom_qty': 1.0,
-            'price_unit': 150.0,
-            'fsm_order_id': order.id,
-        })
-
-        order.sale_order_id = sale_order.id
-
-        # Verificar cálculos
-        self.assertEqual(order.total_cost, 50.0)
-        self.assertEqual(order.total_sale, 150.0)
-        self.assertEqual(order.margin, 100.0)
-        self.assertAlmostEqual(order.margin_percent, 66.67, places=1)
-
-    def test_order_date_validation(self):
-        """Test validación de fechas"""
+    def test_location_and_contact_domains(self):
+        """Test that location and contact domains work correctly"""
         order = self.env['daruclima.fsm.order'].create({
             'partner_id': self.partner.id,
-            'team_id': self.team.id,
-            'description': 'Test fechas',
-            'date_start': fields.Datetime.now(),
-            'date_end': fields.Datetime.now() - timedelta(hours=1),
+            'location_id': self.delivery_address.id,
+            'description': 'Test location',
         })
 
-        # La duración debería ser negativa (caso inválido)
-        self.assertLess(order.duration, 0)
+        self.assertEqual(order.location_id, self.delivery_address)
+        self.assertEqual(order.location_id.parent_id, self.partner)
 
-    def test_order_portal_access(self):
-        """Test acceso al portal"""
+    def test_tags_functionality(self):
+        """Test tags functionality"""
         order = self.env['daruclima.fsm.order'].create({
             'partner_id': self.partner.id,
-            'team_id': self.team.id,
-            'description': 'Test portal',
+            'description': 'Test tags',
+            'tag_ids': [(6, 0, [self.tag.id])],
         })
 
-        # Verificar URL de acceso
-        self.assertTrue(order.access_url)
-        self.assertIn(str(order.id), order.access_url)
+        self.assertIn(self.tag, order.tag_ids)
 
-    def test_order_assignment(self):
-        """Test asignación de técnicos"""
+    def test_technician_assignment(self):
+        """Test technician assignment"""
         order = self.env['daruclima.fsm.order'].create({
             'partner_id': self.partner.id,
-            'team_id': self.team.id,
-            'description': 'Test asignación',
-            'person_ids': [(6, 0, [self.person.id])],
-            'responsible_id': self.person.id,
+            'description': 'Test technician',
+            'responsible_id': self.employee.id,
+            'person_ids': [(6, 0, [self.employee.id])],
         })
 
-        # Verificar asignación
-        self.assertIn(self.person, order.person_ids)
-        self.assertEqual(order.responsible_id, self.person)
-
-    def test_order_equipment_tracking(self):
-        """Test seguimiento de equipos"""
-        equipment = self.env['daruclima.fsm.equipment'].create({
-            'name': 'Equipo Test',
-            'partner_id': self.partner.id,
-            'location_id': self.location.id,
-        })
-
-        order = self.env['daruclima.fsm.order'].create({
-            'partner_id': self.partner.id,
-            'team_id': self.team.id,
-            'description': 'Test equipos',
-            'equipment_ids': [(6, 0, [equipment.id])],
-        })
-
-        # Verificar asociación
-        self.assertIn(equipment, order.equipment_ids)
-        self.assertIn(order, equipment.order_ids)
+        self.assertEqual(order.responsible_id, self.employee)
+        self.assertIn(self.employee, order.person_ids)

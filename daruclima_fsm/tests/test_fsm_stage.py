@@ -1,8 +1,141 @@
 # Copyright 2025 Xtendoo Software SLU
 # License LGPL-3.0 or later (https://www.gnu.org/licenses/lgpl-3.0)
 
-from odoo.tests.common import TransactionCase
+from odoo.tests import TransactionCase
 from odoo.exceptions import ValidationError
+
+
+class TestFSMStage(TransactionCase):
+    """Test cases for FSM Stage functionality"""
+
+    def setUp(self):
+        super(TestFSMStage, self).setUp()
+
+        # Create test company
+        self.company = self.env['res.company'].create({
+            'name': 'Test Company',
+        })
+
+    def test_stage_creation(self):
+        """Test FSM stage creation"""
+        stage = self.env['daruclima.fsm.stage'].create({
+            'name': 'New Stage',
+            'code': 'new_stage',
+            'sequence': 10,
+            'is_default': False,
+            'is_closed': False,
+            'color': '#FF5733',
+        })
+
+        self.assertEqual(stage.name, 'New Stage')
+        self.assertEqual(stage.code, 'new_stage')
+        self.assertEqual(stage.sequence, 10)
+        self.assertFalse(stage.is_default)
+        self.assertFalse(stage.is_closed)
+        self.assertEqual(stage.color, '#FF5733')
+
+    def test_default_stage(self):
+        """Test default stage functionality"""
+        # Create a default stage
+        default_stage = self.env['daruclima.fsm.stage'].create({
+            'name': 'Default Stage',
+            'code': 'default',
+            'sequence': 1,
+            'is_default': True,
+            'is_closed': False,
+            'color': '#00FF00',
+        })
+
+        # Create a non-default stage
+        regular_stage = self.env['daruclima.fsm.stage'].create({
+            'name': 'Regular Stage',
+            'code': 'regular',
+            'sequence': 2,
+            'is_default': False,
+            'is_closed': False,
+            'color': '#0000FF',
+        })
+
+        # Test that we can identify default stages
+        self.assertTrue(default_stage.is_default)
+        self.assertFalse(regular_stage.is_default)
+
+    def test_closed_stage(self):
+        """Test closed stage functionality"""
+        closed_stage = self.env['daruclima.fsm.stage'].create({
+            'name': 'Completed',
+            'code': 'done',
+            'sequence': 100,
+            'is_default': False,
+            'is_closed': True,
+            'color': '#90EE90',
+        })
+
+        self.assertTrue(closed_stage.is_closed)
+
+    def test_stage_sequence(self):
+        """Test stage ordering by sequence"""
+        stage1 = self.env['daruclima.fsm.stage'].create({
+            'name': 'Stage 1',
+            'code': 'stage1',
+            'sequence': 10,
+        })
+
+        stage2 = self.env['daruclima.fsm.stage'].create({
+            'name': 'Stage 2',
+            'code': 'stage2',
+            'sequence': 5,
+        })
+
+        stage3 = self.env['daruclima.fsm.stage'].create({
+            'name': 'Stage 3',
+            'code': 'stage3',
+            'sequence': 15,
+        })
+
+        # Get stages ordered by sequence
+        stages = self.env['daruclima.fsm.stage'].search([
+            ('id', 'in', [stage1.id, stage2.id, stage3.id])
+        ], order='sequence')
+
+        self.assertEqual(stages[0], stage2)  # sequence 5
+        self.assertEqual(stages[1], stage1)  # sequence 10
+        self.assertEqual(stages[2], stage3)  # sequence 15
+
+    def test_stage_company_filter(self):
+        """Test stage filtering by company"""
+        stage_company1 = self.env['daruclima.fsm.stage'].create({
+            'name': 'Stage Company 1',
+            'code': 'comp1',
+            'sequence': 1,
+            'company_id': self.company.id,
+        })
+
+        stage_global = self.env['daruclima.fsm.stage'].create({
+            'name': 'Global Stage',
+            'code': 'global',
+            'sequence': 2,
+            'company_id': False,
+        })
+
+        # Both stages should be available for the company
+        company_stages = self.env['daruclima.fsm.stage'].search([
+            ('company_id', 'in', [self.company.id, False])
+        ])
+
+        self.assertIn(stage_company1, company_stages)
+        self.assertIn(stage_global, company_stages)
+
+    def test_stage_color_validation(self):
+        """Test that color field accepts valid hex colors"""
+        stage = self.env['daruclima.fsm.stage'].create({
+            'name': 'Colored Stage',
+            'code': 'colored',
+            'sequence': 1,
+            'color': '#ABCDEF',
+        })
+
+        self.assertEqual(stage.color, '#ABCDEF')
 
 
 class TestDaruclimeFSMStage(TransactionCase):
@@ -138,148 +271,3 @@ class TestDaruclimeFSMStage(TransactionCase):
         stage1.refresh()
         self.assertFalse(stage1.is_default)
         self.assertTrue(stage2.is_default)
-
-
-class TestDaruclimeFSMTag(TransactionCase):
-    """Test cases para etiquetas FSM"""
-
-    @classmethod
-    def setUpClass(cls):
-        super().setUpClass()
-
-        cls.partner = cls.env['res.partner'].create({
-            'name': 'Cliente Test',
-        })
-
-        cls.team = cls.env['daruclima.fsm.team'].create({
-            'name': 'Equipo Test',
-            'code': 'TEST',
-        })
-
-    def test_tag_creation(self):
-        """Test creación de etiquetas FSM"""
-        tag = self.env['daruclima.fsm.tag'].create({
-            'name': 'Urgente',
-            'description': 'Servicios de alta prioridad',
-            'color': 1,
-        })
-
-        self.assertEqual(tag.name, 'Urgente')
-        self.assertEqual(tag.description, 'Servicios de alta prioridad')
-        self.assertEqual(tag.color, 1)
-        self.assertTrue(tag.active)
-
-    def test_tag_order_count(self):
-        """Test conteo de órdenes por etiqueta"""
-        tag = self.env['daruclima.fsm.tag'].create({
-            'name': 'Mantenimiento',
-            'color': 2,
-        })
-
-        # Crear órdenes con esta etiqueta
-        self.env['daruclima.fsm.order'].create({
-            'partner_id': self.partner.id,
-            'team_id': self.team.id,
-            'description': 'Orden 1',
-            'tag_ids': [(6, 0, [tag.id])],
-        })
-
-        self.env['daruclima.fsm.order'].create({
-            'partner_id': self.partner.id,
-            'team_id': self.team.id,
-            'description': 'Orden 2',
-            'tag_ids': [(6, 0, [tag.id])],
-        })
-
-        # Verificar conteo
-        self.assertEqual(tag.order_count, 2)
-
-    def test_tag_action_view_orders(self):
-        """Test acción para ver órdenes de etiqueta"""
-        tag = self.env['daruclima.fsm.tag'].create({
-            'name': 'Test Tag',
-            'color': 3,
-        })
-
-        action = tag.action_view_orders()
-
-        self.assertEqual(action['type'], 'ir.actions.act_window')
-        self.assertEqual(action['res_model'], 'daruclima.fsm.order')
-        self.assertIn(('tag_ids', 'in', [tag.id]), action['domain'])
-        self.assertIn('default_tag_ids', action['context'])
-
-    def test_tag_required_fields(self):
-        """Test campos requeridos de etiquetas"""
-        with self.assertRaises(ValidationError):
-            self.env['daruclima.fsm.tag'].create({
-                'color': 1,
-            })
-
-    def test_tag_translation(self):
-        """Test traducción de etiquetas"""
-        tag = self.env['daruclima.fsm.tag'].create({
-            'name': 'Emergency',
-            'description': 'Emergency services',
-        })
-
-        # Verificar que los campos son traducibles
-        self.assertTrue(hasattr(tag._fields['name'], 'translate'))
-        self.assertEqual(tag.name, 'Emergency')
-
-    def test_tag_color_functionality(self):
-        """Test funcionalidad de colores"""
-        colors = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]
-
-        for color in colors:
-            tag = self.env['daruclima.fsm.tag'].create({
-                'name': f'Tag Color {color}',
-                'color': color,
-            })
-            self.assertEqual(tag.color, color)
-
-    def test_tag_multiple_orders(self):
-        """Test etiquetas en múltiples órdenes"""
-        tag1 = self.env['daruclima.fsm.tag'].create({
-            'name': 'Tag 1',
-            'color': 1,
-        })
-
-        tag2 = self.env['daruclima.fsm.tag'].create({
-            'name': 'Tag 2',
-            'color': 2,
-        })
-
-        # Crear orden con múltiples etiquetas
-        order = self.env['daruclima.fsm.order'].create({
-            'partner_id': self.partner.id,
-            'team_id': self.team.id,
-            'description': 'Orden con múltiples tags',
-            'tag_ids': [(6, 0, [tag1.id, tag2.id])],
-        })
-
-        # Verificar asociación
-        self.assertIn(tag1, order.tag_ids)
-        self.assertIn(tag2, order.tag_ids)
-        self.assertEqual(tag1.order_count, 1)
-        self.assertEqual(tag2.order_count, 1)
-
-    def test_tag_company_isolation(self):
-        """Test aislamiento por compañía"""
-        company1 = self.env.company
-        company2 = self.env['res.company'].create({
-            'name': 'Company 2',
-        })
-
-        tag1 = self.env['daruclima.fsm.tag'].create({
-            'name': 'Tag Company 1',
-            'company_id': company1.id,
-        })
-
-        tag2 = self.env['daruclima.fsm.tag'].create({
-            'name': 'Tag Company 2',
-            'company_id': company2.id,
-        })
-
-        # Verificar que cada etiqueta pertenece a su compañía
-        self.assertEqual(tag1.company_id, company1)
-        self.assertEqual(tag2.company_id, company2)

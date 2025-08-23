@@ -8,20 +8,15 @@ class ResConfigSettings(models.TransientModel):
     _inherit = 'res.config.settings'
 
     # Configuración FSM
-    fsm_default_team_id = fields.Many2one(
-        'daruclima.fsm.team',
-        string='Equipo FSM por Defecto',
-        config_parameter='daruclima_fsm.default_team_id'
-    )
     fsm_auto_create_project = fields.Boolean(
         string='Crear Proyecto Automáticamente',
         config_parameter='daruclima_fsm.auto_create_project',
-        help="Crear automáticamente un proyecto para cada orden FSM"
+        help="Crear automáticamente un proyecto para cada orden de trabajo"
     )
     fsm_enable_geolocation = fields.Boolean(
         string='Habilitar Geolocalización',
         config_parameter='daruclima_fsm.enable_geolocation',
-        help="Habilitar funciones de geolocalización para órdenes FSM"
+        help="Habilitar funciones de geolocalización para órdenes de trabajo"
     )
     fsm_invoice_policy = fields.Selection([
         ('manual', 'Manual'),

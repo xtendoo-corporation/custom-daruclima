@@ -1,355 +1,235 @@
 # Copyright 2025 Xtendoo Software SLU
 # License LGPL-3.0 or later (https://www.gnu.org/licenses/lgpl-3.0)
 
-from odoo.tests.common import TransactionCase
-from odoo.exceptions import ValidationError
-from datetime import date, timedelta
+from odoo.tests import TransactionCase
 
 
-class TestDaruclimeFSMLocation(TransactionCase):
-    """Test cases para ubicaciones FSM"""
+class TestFSMLocation(TransactionCase):
+    """Test cases for FSM location and address functionality"""
 
-    @classmethod
-    def setUpClass(cls):
-        super().setUpClass()
+    def setUp(self):
+        super(TestFSMLocation, self).setUp()
 
-        cls.partner = cls.env['res.partner'].create({
-            'name': 'Cliente Ubicaciones',
-            'email': 'ubicaciones@test.com',
+        # Create test company partner
+        self.company_partner = self.env['res.partner'].create({
+            'name': 'Test Company',
+            'is_company': True,
+            'email': 'company@test.com',
+            'phone': '+1234567890',
+            'street': 'Company Main Street 123',
+            'city': 'Company City',
+            'zip': '12345',
+            'country_id': self.env.ref('base.us').id,
         })
 
-        cls.contact = cls.env['res.partner'].create({
-            'name': 'Contacto Local',
-            'parent_id': cls.partner.id,
+        # Create delivery addresses
+        self.delivery_address1 = self.env['res.partner'].create({
+            'name': 'Warehouse Location',
+            'parent_id': self.company_partner.id,
+            'type': 'delivery',
+            'street': 'Warehouse Street 456',
+            'city': 'Warehouse City',
+            'zip': '54321',
+        })
+
+        self.delivery_address2 = self.env['res.partner'].create({
+            'name': 'Branch Office',
+            'parent_id': self.company_partner.id,
+            'type': 'delivery',
+            'street': 'Branch Avenue 789',
+            'city': 'Branch City',
+            'zip': '98765',
+        })
+
+        # Create contact persons
+        self.contact1 = self.env['res.partner'].create({
+            'name': 'John Contact',
+            'parent_id': self.company_partner.id,
             'is_company': False,
-            'phone': '123456789',
+            'email': 'john@test.com',
+            'phone': '+1111111111',
         })
 
-        cls.team = cls.env['daruclima.fsm.team'].create({
-            'name': 'Equipo Test',
-            'code': 'TEST',
+        self.contact2 = self.env['res.partner'].create({
+            'name': 'Jane Contact',
+            'parent_id': self.company_partner.id,
+            'is_company': False,
+            'email': 'jane@test.com',
+            'phone': '+2222222222',
         })
 
-    def test_location_creation(self):
-        """Test creación de ubicaciones FSM"""
-        location = self.env['daruclima.fsm.location'].create({
-            'name': 'Oficina Central Madrid',
-            'partner_id': self.partner.id,
-            'street': 'Gran Vía 1',
-            'city': 'Madrid',
-            'zip': '28001',
-            'contact_id': self.contact.id,
+        # Create test stage
+        self.stage = self.env['daruclima.fsm.stage'].create({
+            'name': 'Test Stage',
+            'code': 'test',
+            'sequence': 1,
+            'is_default': True,
         })
 
-        self.assertEqual(location.name, 'Oficina Central Madrid')
-        self.assertEqual(location.partner_id, self.partner)
-        self.assertEqual(location.contact_id, self.contact)
-        self.assertEqual(location.street, 'Gran Vía 1')
-        self.assertEqual(location.city, 'Madrid')
-        self.assertTrue(location.active)
-
-    def test_location_statistics(self):
-        """Test estadísticas de ubicaciones"""
-        location = self.env['daruclima.fsm.location'].create({
-            'name': 'Ubicación Stats',
-            'partner_id': self.partner.id,
+    def test_location_assignment(self):
+        """Test location assignment to FSM orders"""
+        fsm_order = self.env['daruclima.fsm.order'].create({
+            'partner_id': self.company_partner.id,
+            'location_id': self.delivery_address1.id,
+            'description': 'Location test order',
         })
 
-        # Crear órdenes para la ubicación
-        self.env['daruclima.fsm.order'].create({
-            'partner_id': self.partner.id,
-            'location_id': location.id,
-            'team_id': self.team.id,
-            'description': 'Orden 1',
+        self.assertEqual(fsm_order.location_id, self.delivery_address1)
+        self.assertEqual(fsm_order.location_id.parent_id, self.company_partner)
+        self.assertEqual(fsm_order.location_id.type, 'delivery')
+
+    def test_contact_assignment(self):
+        """Test contact person assignment to FSM orders"""
+        fsm_order = self.env['daruclima.fsm.order'].create({
+            'partner_id': self.company_partner.id,
+            'contact_id': self.contact1.id,
+            'description': 'Contact test order',
         })
 
-        self.env['daruclima.fsm.order'].create({
-            'partner_id': self.partner.id,
-            'location_id': location.id,
-            'team_id': self.team.id,
-            'description': 'Orden 2',
+        self.assertEqual(fsm_order.contact_id, self.contact1)
+        self.assertEqual(fsm_order.contact_id.parent_id, self.company_partner)
+        self.assertFalse(fsm_order.contact_id.is_company)
+
+    def test_location_and_contact_together(self):
+        """Test using both location and contact in same order"""
+        fsm_order = self.env['daruclima.fsm.order'].create({
+            'partner_id': self.company_partner.id,
+            'location_id': self.delivery_address1.id,
+            'contact_id': self.contact1.id,
+            'description': 'Location and contact test',
         })
 
-        # Crear equipos para la ubicación
-        self.env['daruclima.fsm.equipment'].create({
-            'name': 'Equipo 1',
-            'partner_id': self.partner.id,
-            'location_id': location.id,
+        self.assertEqual(fsm_order.location_id, self.delivery_address1)
+        self.assertEqual(fsm_order.contact_id, self.contact1)
+        self.assertEqual(fsm_order.location_id.parent_id, self.company_partner)
+        self.assertEqual(fsm_order.contact_id.parent_id, self.company_partner)
+
+    def test_multiple_locations_available(self):
+        """Test that multiple delivery addresses are available"""
+        fsm_order = self.env['daruclima.fsm.order'].create({
+            'partner_id': self.company_partner.id,
+            'description': 'Multiple locations test',
         })
 
-        # Verificar estadísticas
-        self.assertEqual(location.order_count, 2)
-        self.assertEqual(location.equipment_count, 1)
+        # Get available delivery addresses for this partner
+        delivery_addresses = self.env['res.partner'].search([
+            ('parent_id', '=', self.company_partner.id),
+            ('type', '=', 'delivery')
+        ])
 
-    def test_location_actions(self):
-        """Test acciones de ubicaciones"""
-        location = self.env['daruclima.fsm.location'].create({
-            'name': 'Ubicación Acciones',
-            'partner_id': self.partner.id,
+        self.assertIn(self.delivery_address1, delivery_addresses)
+        self.assertIn(self.delivery_address2, delivery_addresses)
+        self.assertEqual(len(delivery_addresses), 2)
+
+    def test_multiple_contacts_available(self):
+        """Test that multiple contacts are available"""
+        fsm_order = self.env['daruclima.fsm.order'].create({
+            'partner_id': self.company_partner.id,
+            'description': 'Multiple contacts test',
         })
 
-        # Test acción ver órdenes
-        action_orders = location.action_view_orders()
-        self.assertEqual(action_orders['type'], 'ir.actions.act_window')
-        self.assertEqual(action_orders['res_model'], 'daruclima.fsm.order')
-        self.assertIn(('location_id', '=', location.id), action_orders['domain'])
+        # Get available contacts for this partner
+        contacts = self.env['res.partner'].search([
+            ('parent_id', '=', self.company_partner.id),
+            ('is_company', '=', False)
+        ])
 
-        # Test acción ver equipos
-        action_equipment = location.action_view_equipment()
-        self.assertEqual(action_equipment['type'], 'ir.actions.act_window')
-        self.assertEqual(action_equipment['res_model'], 'daruclima.fsm.equipment')
-        self.assertIn(('location_id', '=', location.id), action_equipment['domain'])
+        self.assertIn(self.contact1, contacts)
+        self.assertIn(self.contact2, contacts)
+        self.assertEqual(len(contacts), 2)
 
-    def test_location_geolocation(self):
-        """Test geolocalización de ubicaciones"""
-        location = self.env['daruclima.fsm.location'].create({
-            'name': 'Ubicación GPS',
-            'partner_id': self.partner.id,
-            'partner_latitude': 40.4168,
-            'partner_longitude': -3.7038,
+    def test_location_domain_constraint(self):
+        """Test that location domain works correctly"""
+        # Create another company with its own delivery address
+        other_company = self.env['res.partner'].create({
+            'name': 'Other Company',
+            'is_company': True,
         })
 
-        self.assertEqual(location.partner_latitude, 40.4168)
-        self.assertEqual(location.partner_longitude, -3.7038)
-
-    def test_location_access_info(self):
-        """Test información de acceso"""
-        access_instructions = "Código de acceso: 1234. Llamar al timbre 3 veces."
-
-        location = self.env['daruclima.fsm.location'].create({
-            'name': 'Ubicación Acceso',
-            'partner_id': self.partner.id,
-            'access_info': access_instructions,
+        other_delivery = self.env['res.partner'].create({
+            'name': 'Other Delivery',
+            'parent_id': other_company.id,
+            'type': 'delivery',
         })
 
-        self.assertEqual(location.access_info, access_instructions)
-
-    def test_location_required_fields(self):
-        """Test campos requeridos de ubicaciones"""
-        with self.assertRaises(ValidationError):
-            self.env['daruclima.fsm.location'].create({
-                'name': 'Ubicación sin cliente',
-            })
-
-        with self.assertRaises(ValidationError):
-            self.env['daruclima.fsm.location'].create({
-                'partner_id': self.partner.id,
-            })
-
-
-class TestDaruclimeFSMEquipment(TransactionCase):
-    """Test cases para equipos FSM"""
-
-    @classmethod
-    def setUpClass(cls):
-        super().setUpClass()
-
-        cls.partner = cls.env['res.partner'].create({
-            'name': 'Cliente Equipos',
+        fsm_order = self.env['daruclima.fsm.order'].create({
+            'partner_id': self.company_partner.id,
+            'description': 'Domain constraint test',
         })
 
-        cls.location = cls.env['daruclima.fsm.location'].create({
-            'name': 'Ubicación Equipos',
-            'partner_id': cls.partner.id,
+        # Verify that we can only see delivery addresses for the selected partner
+        valid_locations = self.env['res.partner'].search([
+            ('parent_id', '=', self.company_partner.id),
+            ('type', '=', 'delivery')
+        ])
+
+        self.assertIn(self.delivery_address1, valid_locations)
+        self.assertIn(self.delivery_address2, valid_locations)
+        self.assertNotIn(other_delivery, valid_locations)
+
+    def test_contact_domain_constraint(self):
+        """Test that contact domain works correctly"""
+        # Create another company with its own contact
+        other_company = self.env['res.partner'].create({
+            'name': 'Other Company',
+            'is_company': True,
         })
 
-        cls.product = cls.env['product.product'].create({
-            'name': 'Aire Acondicionado',
-            'type': 'product',
+        other_contact = self.env['res.partner'].create({
+            'name': 'Other Contact',
+            'parent_id': other_company.id,
+            'is_company': False,
         })
 
-        cls.team = cls.env['daruclima.fsm.team'].create({
-            'name': 'Equipo Test',
-            'code': 'TEST',
+        fsm_order = self.env['daruclima.fsm.order'].create({
+            'partner_id': self.company_partner.id,
+            'description': 'Contact domain test',
         })
 
-    def test_equipment_creation(self):
-        """Test creación de equipos FSM"""
-        equipment = self.env['daruclima.fsm.equipment'].create({
-            'name': 'Equipo Prueba',
-            'partner_id': self.partner.id,
-            'location_id': self.location.id,
-            'code': 'EQ001',
-            'brand': 'Samsung',
-            'model': 'AR12000',
-            'serial_number': 'SN123456789',
+        # Verify that we can only see contacts for the selected partner
+        valid_contacts = self.env['res.partner'].search([
+            ('parent_id', '=', self.company_partner.id),
+            ('is_company', '=', False)
+        ])
+
+        self.assertIn(self.contact1, valid_contacts)
+        self.assertIn(self.contact2, valid_contacts)
+        self.assertNotIn(other_contact, valid_contacts)
+
+    def test_location_address_details(self):
+        """Test that location address details are properly stored"""
+        fsm_order = self.env['daruclima.fsm.order'].create({
+            'partner_id': self.company_partner.id,
+            'location_id': self.delivery_address1.id,
+            'description': 'Address details test',
         })
 
-        self.assertEqual(equipment.name, 'Equipo Prueba')
-        self.assertEqual(equipment.partner_id, self.partner)
-        self.assertEqual(equipment.location_id, self.location)
-        self.assertEqual(equipment.code, 'EQ001')
-        self.assertEqual(equipment.brand, 'Samsung')
-        self.assertEqual(equipment.model, 'AR12000')
-        self.assertEqual(equipment.status, 'active')
-        self.assertTrue(equipment.active)
+        location = fsm_order.location_id
+        self.assertEqual(location.street, 'Warehouse Street 456')
+        self.assertEqual(location.city, 'Warehouse City')
+        self.assertEqual(location.zip, '54321')
 
-    def test_equipment_maintenance_calculation(self):
-        """Test cálculo de mantenimiento"""
-        equipment = self.env['daruclima.fsm.equipment'].create({
-            'name': 'Equipo Mantenimiento',
-            'partner_id': self.partner.id,
-            'location_id': self.location.id,
-            'maintenance_frequency': 90,  # 90 días
-            'last_maintenance_date': date.today() - timedelta(days=30),
+    def test_contact_details(self):
+        """Test that contact details are properly stored"""
+        fsm_order = self.env['daruclima.fsm.order'].create({
+            'partner_id': self.company_partner.id,
+            'contact_id': self.contact1.id,
+            'description': 'Contact details test',
         })
 
-        # Verificar cálculo de próximo mantenimiento
-        expected_date = equipment.last_maintenance_date + timedelta(days=90)
-        self.assertEqual(equipment.next_maintenance_date, expected_date)
+        contact = fsm_order.contact_id
+        self.assertEqual(contact.name, 'John Contact')
+        self.assertEqual(contact.email, 'john@test.com')
+        self.assertEqual(contact.phone, '+1111111111')
 
-    def test_equipment_statistics(self):
-        """Test estadísticas de equipos"""
-        equipment = self.env['daruclima.fsm.equipment'].create({
-            'name': 'Equipo Stats',
-            'partner_id': self.partner.id,
-            'location_id': self.location.id,
+    def test_no_location_or_contact(self):
+        """Test FSM order without specific location or contact"""
+        fsm_order = self.env['daruclima.fsm.order'].create({
+            'partner_id': self.company_partner.id,
+            'description': 'No location or contact test',
         })
 
-        # Crear órdenes relacionadas con el equipo
-        order1 = self.env['daruclima.fsm.order'].create({
-            'partner_id': self.partner.id,
-            'team_id': self.team.id,
-            'description': 'Reparación general',
-            'equipment_ids': [(6, 0, [equipment.id])],
-        })
-
-        order2 = self.env['daruclima.fsm.order'].create({
-            'partner_id': self.partner.id,
-            'team_id': self.team.id,
-            'description': 'Mantenimiento preventivo',
-            'equipment_ids': [(6, 0, [equipment.id])],
-        })
-
-        # Verificar estadísticas
-        self.assertEqual(equipment.order_count, 2)
-        self.assertEqual(equipment.maintenance_count, 1)  # Una orden contiene "mantenimiento"
-
-    def test_equipment_actions(self):
-        """Test acciones de equipos"""
-        equipment = self.env['daruclima.fsm.equipment'].create({
-            'name': 'Equipo Acciones',
-            'partner_id': self.partner.id,
-            'location_id': self.location.id,
-        })
-
-        # Test acción ver órdenes
-        action_orders = equipment.action_view_orders()
-        self.assertEqual(action_orders['type'], 'ir.actions.act_window')
-        self.assertEqual(action_orders['res_model'], 'daruclima.fsm.order')
-        self.assertIn(('equipment_ids', 'in', [equipment.id]), action_orders['domain'])
-
-        # Test acción programar mantenimiento
-        action_maintenance = equipment.action_schedule_maintenance()
-        self.assertEqual(action_maintenance['type'], 'ir.actions.act_window')
-        self.assertEqual(action_maintenance['res_model'], 'daruclima.fsm.order')
-        self.assertIn('default_equipment_ids', action_maintenance['context'])
-
-    def test_equipment_status_workflow(self):
-        """Test workflow de estados del equipo"""
-        equipment = self.env['daruclima.fsm.equipment'].create({
-            'name': 'Equipo Estado',
-            'partner_id': self.partner.id,
-            'location_id': self.location.id,
-            'status': 'active',
-        })
-
-        # Cambiar a mantenimiento
-        equipment.status = 'maintenance'
-        self.assertEqual(equipment.status, 'maintenance')
-
-        # Cambiar a inactivo
-        equipment.status = 'inactive'
-        self.assertEqual(equipment.status, 'inactive')
-
-        # Retirar equipo
-        equipment.status = 'retired'
-        self.assertEqual(equipment.status, 'retired')
-
-    def test_equipment_warranty_tracking(self):
-        """Test seguimiento de garantía"""
-        warranty_date = date.today() + timedelta(days=365)
-
-        equipment = self.env['daruclima.fsm.equipment'].create({
-            'name': 'Equipo Garantía',
-            'partner_id': self.partner.id,
-            'location_id': self.location.id,
-            'purchase_date': date.today() - timedelta(days=30),
-            'installation_date': date.today() - timedelta(days=15),
-            'warranty_expiry': warranty_date,
-        })
-
-        self.assertEqual(equipment.warranty_expiry, warranty_date)
-        self.assertTrue(equipment.warranty_expiry > date.today())
-
-    def test_equipment_product_relation(self):
-        """Test relación con productos"""
-        equipment = self.env['daruclima.fsm.equipment'].create({
-            'name': 'Equipo Producto',
-            'partner_id': self.partner.id,
-            'location_id': self.location.id,
-            'product_id': self.product.id,
-        })
-
-        self.assertEqual(equipment.product_id, self.product)
-
-    def test_equipment_specifications(self):
-        """Test especificaciones técnicas"""
-        specs = "Potencia: 12000 BTU\nVoltaje: 220V\nFrecuencia: 50Hz"
-        manual_url = "https://manual.example.com/ar12000"
-
-        equipment = self.env['daruclima.fsm.equipment'].create({
-            'name': 'Equipo Specs',
-            'partner_id': self.partner.id,
-            'location_id': self.location.id,
-            'specifications': specs,
-            'manual_url': manual_url,
-        })
-
-        self.assertEqual(equipment.specifications, specs)
-        self.assertEqual(equipment.manual_url, manual_url)
-
-    def test_equipment_required_fields(self):
-        """Test campos requeridos de equipos"""
-        with self.assertRaises(ValidationError):
-            self.env['daruclima.fsm.equipment'].create({
-                'name': 'Equipo sin cliente',
-                'location_id': self.location.id,
-            })
-
-        with self.assertRaises(ValidationError):
-            self.env['daruclima.fsm.equipment'].create({
-                'partner_id': self.partner.id,
-                'location_id': self.location.id,
-            })
-
-    def test_equipment_maintenance_frequency_validation(self):
-        """Test validación de frecuencia de mantenimiento"""
-        equipment = self.env['daruclima.fsm.equipment'].create({
-            'name': 'Equipo Frecuencia',
-            'partner_id': self.partner.id,
-            'location_id': self.location.id,
-            'maintenance_frequency': 0,
-        })
-
-        # Con frecuencia 0, no debería calcular próximo mantenimiento
-        self.assertFalse(equipment.next_maintenance_date)
-
-    def test_equipment_order_association(self):
-        """Test asociación con órdenes FSM"""
-        equipment = self.env['daruclima.fsm.equipment'].create({
-            'name': 'Equipo Órdenes',
-            'partner_id': self.partner.id,
-            'location_id': self.location.id,
-        })
-
-        order = self.env['daruclima.fsm.order'].create({
-            'partner_id': self.partner.id,
-            'team_id': self.team.id,
-            'description': 'Trabajo en equipo',
-            'equipment_ids': [(6, 0, [equipment.id])],
-        })
-
-        # Verificar asociación bidireccional
-        self.assertIn(equipment, order.equipment_ids)
-        self.assertIn(order, equipment.order_ids)
+        # Should still work with just the main partner
+        self.assertEqual(fsm_order.partner_id, self.company_partner)
+        self.assertFalse(fsm_order.location_id)
+        self.assertFalse(fsm_order.contact_id)

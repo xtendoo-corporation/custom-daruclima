@@ -4,37 +4,21 @@
 
         <!-- Acción para órdenes FSM -->
         <record id="action_daruclima_fsm_order" model="ir.actions.act_window">
-            <field name="name">Partes de Trabajo FSM</field>
+            <field name="name">Órdenes de Trabajo</field>
             <field name="res_model">daruclima.fsm.order</field>
             <field name="view_mode">kanban,list,form,calendar</field>
             <field name="context">{}</field>
             <field name="help" type="html">
                 <p class="o_view_nocontent_smiling_face">
-                    Crear nuevo parte de trabajo
+                    Crear nueva orden de trabajo
                 </p>
                 <p>
-                    Los partes de trabajo permiten gestionar el trabajo en las instalaciones del cliente.
+                    Las órdenes de trabajo permiten gestionar el trabajo en las instalaciones del cliente.
                 </p>
             </field>
         </record>
 
-        <!-- Acción para Equipos FSM -->
-        <record id="action_daruclima_fsm_team" model="ir.actions.act_window">
-            <field name="name">Equipos de Trabajo</field>
-            <field name="res_model">daruclima.fsm.team</field>
-            <field name="view_mode">list,form</field>
-            <field name="context">{}</field>
-            <field name="help" type="html">
-                <p class="o_view_nocontent_smiling_face">
-                    Crear nuevo equipo de trabajo
-                </p>
-                <p>
-                    Los equipos de trabajo organizan a los técnicos por áreas o especialidades.
-                </p>
-            </field>
-        </record>
-
-        <!-- Acción para Técnicos (Personas) -->
+        <!-- Acción para Técnicos (Empleados) -->
         <record id="action_daruclima_fsm_person" model="ir.actions.act_window">
             <field name="name">Técnicos</field>
             <field name="res_model">hr.employee</field>
@@ -46,40 +30,7 @@
                     Crear nuevo técnico
                 </p>
                 <p>
-                    Los técnicos son empleados especializados en partes de trabajo.
-                </p>
-            </field>
-        </record>
-
-        <!-- Acción para Ubicaciones -->
-        <record id="action_daruclima_fsm_location" model="ir.actions.act_window">
-            <field name="name">Ubicaciones de Trabajo</field>
-            <field name="res_model">daruclima.fsm.location</field>
-            <field name="view_mode">list,form,map</field>
-            <field name="context">{}</field>
-            <field name="help" type="html">
-                <p class="o_view_nocontent_smiling_face">
-                    Crear nueva ubicación
-                </p>
-                <p>
-                    Las ubicaciones representan los sitios donde se realizan los trabajos.
-                </p>
-            </field>
-        </record>
-
-        <!-- Acción para Equipos de Cliente -->
-        <record id="action_daruclima_fsm_equipment" model="ir.actions.act_window">
-            <field name="name">Equipos de Cliente</field>
-            <field name="res_model">maintenance.equipment</field>
-            <field name="view_mode">list,form,kanban</field>
-            <field name="context">{}</field>
-            <field name="domain">[]</field>
-            <field name="help" type="html">
-                <p class="o_view_nocontent_smiling_face">
-                    Crear nuevo equipo
-                </p>
-                <p>
-                    Los equipos representan las máquinas o sistemas que requieren trabajo.
+                    Los técnicos son empleados especializados en órdenes de trabajo.
                 </p>
             </field>
         </record>
@@ -95,7 +46,7 @@
                     Crear nueva etapa
                 </p>
                 <p>
-                    Las etapas definen el flujo de trabajo de los partes de trabajo.
+                    Las etapas definen el flujo de trabajo de las órdenes de trabajo.
                 </p>
             </field>
         </record>
@@ -111,7 +62,7 @@
                     Crear nueva etiqueta
                 </p>
                 <p>
-                    Las etiquetas permiten categorizar los partes de trabajo.
+                    Las etiquetas permiten categorizar las órdenes de trabajo.
                 </p>
             </field>
         </record>

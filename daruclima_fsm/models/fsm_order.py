@@ -10,7 +10,7 @@ class DaruclimeFSMOrder(models.Model):
     _name = 'daruclima.fsm.order'
     _description = 'Orden de Trabajo'
     _inherit = ['mail.thread', 'mail.activity.mixin', 'portal.mixin']
-    _order = 'priority desc, date_scheduled asc, id desc'
+    _order = 'priority_level desc, date_scheduled asc, id desc'
     _rec_name = 'name'
 
     # Campos básicos
@@ -32,15 +32,15 @@ class DaruclimeFSMOrder(models.Model):
         help="Cliente para quien se realiza el servicio"
     )
     location_id = fields.Many2one(
-        'daruclima.fsm.location',
-        string='Ubicación del Servicio',
+        'res.partner',
+        string='Dirección del Servicio',
         tracking=True,
-        help="Ubicación donde se realizará el servicio"
+        domain="[('parent_id', '=', partner_id), ('type', '=', 'delivery')]",
+        help="Dirección de entrega donde se realizará el servicio"
     )
     contact_id = fields.Many2one(
         'res.partner',
         string='Persona de Contacto',
-        domain="[('parent_id', '=', partner_id), ('is_company', '=', False)]",
         help="Persona de contacto en la ubicación del servicio"
     )
 
@@ -68,14 +68,19 @@ class DaruclimeFSMOrder(models.Model):
         group_expand='_read_group_stage_ids',
         default=lambda self: self._get_default_stage()
     )
-    priority = fields.Selection([
-        ('0', 'Muy Baja'),
-        ('1', 'Baja'),
-        ('2', 'Normal'),
-        ('3', 'Alta'),
-        ('4', 'Muy Alta'),
-        ('5', 'Urgente')
-    ], string='Prioridad', default='2', tracking=True)
+    priority_level = fields.Selection(
+        selection=[
+            ('0', 'Muy Baja'),
+            ('1', 'Baja'),
+            ('2', 'Normal'),
+            ('3', 'Alta'),
+            ('4', 'Muy Alta'),
+            ('5', 'Urgente')
+        ],
+        string='Prioridad',
+        default='2',
+        tracking=True
+    )
 
     color = fields.Char(string='Color', related='stage_id.color', store=True)
     is_closed = fields.Boolean(string='Cerrado', related='stage_id.is_closed', store=True)
@@ -106,140 +111,66 @@ class DaruclimeFSMOrder(models.Model):
         help="Duración del trabajo en horas"
     )
 
-    # Equipo y técnicos
-    team_id = fields.Many2one(
-        'daruclima.fsm.team',
-        string='Equipo',
-        required=True,
-        default=lambda self: self._get_default_team(),
-        tracking=True
-    )
-    person_ids = fields.Many2many(
-        'daruclima.fsm.person',
-        string='Técnicos Asignados',
-        tracking=True
-    )
     responsible_id = fields.Many2one(
-        'daruclima.fsm.person',
+        'hr.employee',
         string='Técnico Responsable',
-        tracking=True
+        tracking=True,
+        help="Empleado responsable de esta orden de trabajo"
+    )
+
+    # Técnicos (eliminamos la referencia al equipo inexistente)
+    person_ids = fields.Many2many(
+        'hr.employee',
+        'daruclima_fsm_order_employee_rel',
+        'order_id',
+        'employee_id',
+        string='Técnicos Asignados',
+        tracking=True,
+        help="Empleados asignados a esta orden de trabajo"
     )
 
     # Equipos y servicios
-    equipment_ids = fields.Many2many(
-        'daruclima.fsm.equipment',
-        string='Equipos a Revisar/Reparar',
-        help="Equipos que serán revisados o reparados"
-    )
     tag_ids = fields.Many2many(
         'daruclima.fsm.tag',
         string='Etiquetas',
         help="Etiquetas para clasificar y analizar órdenes"
     )
 
-    # Integración con ventas
-    sale_order_id = fields.Many2one(
-        'sale.order',
-        string='Orden de Venta',
-        help="Orden de venta relacionada"
-    )
-    sale_line_ids = fields.One2many(
-        'sale.order.line',
-        'fsm_order_id',
-        string='Líneas de Venta'
-    )
-
-    # Materiales y stock
-    material_ids = fields.One2many(
-        'daruclima.fsm.material',
-        'order_id',
-        string='Materiales Utilizados'
-    )
-    stock_picking_ids = fields.One2many(
-        'stock.picking',
-        'fsm_order_id',
-        string='Movimientos de Stock'
-    )
-
-    # Hojas de tiempo
-    timesheet_ids = fields.One2many(
-        'account.analytic.line',
-        'fsm_order_id',
-        string='Hojas de Tiempo'
-    )
-
-    # Reparaciones
-    repair_ids = fields.One2many(
+    # Integración con reparaciones
+    repair_order_ids = fields.One2many(
         'repair.order',
         'fsm_order_id',
-        string='Órdenes de Reparación'
+        string='Partes de Reparación',
+        help="Partes de reparación relacionados con esta orden de trabajo"
     )
-
-    # Campos de conteo para botones estadísticos
     repair_count = fields.Integer(
         string='Número de Reparaciones',
         compute='_compute_repair_count'
     )
-    quotation_count = fields.Integer(
-        string='Número de Presupuestos',
-        compute='_compute_quotation_count'
-    )
 
-    # Facturación
-    invoice_status = fields.Selection([
-        ('no', 'Sin Facturar'),
-        ('partial', 'Parcialmente Facturado'),
-        ('invoiced', 'Facturado')
-    ], string='Estado de Facturación', compute='_compute_invoice_status', store=True)
-
-    invoice_ids = fields.Many2many(
-        'account.move',
-        string='Facturas',
-        copy=False
+    # Integración con órdenes de venta
+    sale_order_ids = fields.One2many(
+        'sale.order',
+        'fsm_order_id',
+        string='Órdenes de Venta',
+        help="Órdenes de venta relacionadas con esta orden de trabajo"
     )
-
-    # Totales
-    total_cost = fields.Monetary(
-        string='Costo Total',
-        compute='_compute_totals',
-        store=True,
-        currency_field='currency_id'
-    )
-    total_sale = fields.Monetary(
-        string='Total de Venta',
-        compute='_compute_totals',
-        store=True,
-        currency_field='currency_id'
-    )
-    margin = fields.Monetary(
-        string='Margen',
-        compute='_compute_totals',
-        store=True,
-        currency_field='currency_id'
-    )
-    margin_percent = fields.Float(
-        string='% Margen',
-        compute='_compute_totals',
-        store=True
-    )
-
-    # Campos de empresa y moneda
-    company_id = fields.Many2one(
-        'res.company',
-        string='Compañía',
-        required=True,
-        default=lambda self: self.env.company
-    )
-    currency_id = fields.Many2one(
-        'res.currency',
-        related='company_id.currency_id',
-        store=True
+    sale_count = fields.Integer(
+        string='Número de Órdenes de Venta',
+        compute='_compute_sale_count'
     )
 
     # Portal
     access_url = fields.Char(
         string='URL de Acceso',
         compute='_compute_access_url'
+    )
+    company_id = fields.Many2one(
+        'res.company',
+        string='Compañía',
+        required=True,
+        default=lambda self: self.env.company,
+        help="Compañía para la que se realiza esta orden de trabajo"
     )
 
     @api.model_create_multi
@@ -274,398 +205,174 @@ class DaruclimeFSMOrder(models.Model):
                 ('company_id', 'in', [self.env.company.id, False])
             ], limit=1)
 
-        # Si no hay ninguna etapa, crear una básica
-        if not stage:
-            stage = Stage.create({
-                'name': 'Nuevo',
-                'code': 'new',
-                'sequence': 1,
-                'is_default': True,
-                'is_closed': False,
-                'color': '#E6E6FA',
-                'company_id': self.env.company.id
-            })
-
-        # Devolver id para compatibilidad con default de Many2one
-        return stage.id
-
-    def _get_default_team(self):
-        """Obtiene el equipo por defecto - Método mejorado"""
-        # Buscar el primer equipo disponible para la empresa
-        team = self.env['daruclima.fsm.team'].search([
-            ('company_id', 'in', [self.env.company.id, False])
-        ], limit=1)
-
-        # Si no hay ningún equipo, crear uno básico
-        if not team:
-            team = self.env['daruclima.fsm.team'].create({
-                'name': 'Equipo Principal',
-                'code': 'MAIN',
-                'sequence': 1,
-                'description': 'Equipo principal de órdenes de trabajo',
-                'company_id': self.env.company.id
-            })
-
-        return team
+        return stage.id if stage else False
 
     @api.depends('date_start', 'date_end')
     def _compute_duration(self):
-        """Calcula la duración del trabajo"""
         for record in self:
             if record.date_start and record.date_end:
                 delta = record.date_end - record.date_start
-                record.duration = delta.total_seconds() / 3600
+                record.duration = delta.total_seconds() / 3600.0
             else:
                 record.duration = 0.0
 
-    @api.depends('sale_line_ids', 'material_ids', 'timesheet_ids')
-    def _compute_totals(self):
-        """Calcula los totales de costo, venta y margen"""
+    def _compute_repair_count(self):
+        """Calcula el número de reparaciones relacionadas"""
         for record in self:
-            total_cost = sum(record.material_ids.mapped('cost_total'))
-            total_cost += sum(record.timesheet_ids.mapped('amount'))
+            record.repair_count = len(record.repair_order_ids)
 
-            total_sale = sum(record.sale_line_ids.mapped('price_subtotal'))
-
-            record.total_cost = total_cost
-            record.total_sale = total_sale
-            record.margin = total_sale - total_cost
-            record.margin_percent = (record.margin / total_sale * 100) if total_sale else 0.0
-
-    @api.depends('invoice_ids', 'sale_line_ids')
-    def _compute_invoice_status(self):
-        """Calcula el estado de facturación"""
+    def _compute_sale_count(self):
+        """Calcula el número de órdenes de venta relacionadas"""
         for record in self:
-            if not record.sale_line_ids:
-                record.invoice_status = 'no'
-            elif all(line.invoice_status == 'invoiced' for line in record.sale_line_ids):
-                record.invoice_status = 'invoiced'
-            elif any(line.invoice_status == 'invoiced' for line in record.sale_line_ids):
-                record.invoice_status = 'partial'
-            else:
-                record.invoice_status = 'no'
+            record.sale_count = len(record.sale_order_ids)
 
     def _compute_access_url(self):
-        """Calcula la URL de acceso al portal"""
         for record in self:
             record.access_url = f'/my/fsm/{record.id}'
 
     @api.model
-    def _read_group_stage_ids(self, stages, domain, order=None):
-        """Expande las etapas en vista kanban - Método corregido para Odoo 18"""
-        # Obtener todas las etapas disponibles para la empresa actual
-        search_domain = [('company_id', 'in', [self.env.company.id, False])]
-        stage_ids = self.env['daruclima.fsm.stage'].search(search_domain, order=order or 'sequence, id')
+    def _read_group_stage_ids(self, stages, domain):
+        """Expand stage_ids for kanban view"""
+        stage_ids = self.env['daruclima.fsm.stage'].search([
+            ('company_id', 'in', [self.env.company.id, False])
+        ])
         return stage_ids
 
     def action_start_work(self):
         """Inicia el trabajo"""
-        self.ensure_one()
-        if not self.date_start:
-            self.write({
-                'date_start': fields.Datetime.now(),
-                'stage_id': self.env['daruclima.fsm.stage'].search([
-                    ('code', '=', 'in_progress'),
-                    ('company_id', 'in', [self.env.company.id, False])
-                ], limit=1).id
-            })
+        if self.date_start:
+            raise UserError(_('El trabajo ya ha sido iniciado.'))
 
-    def action_end_work(self):
-        """Finaliza el trabajo"""
-        self.ensure_one()
-        if not self.date_end:
-            self.write({
-                'date_end': fields.Datetime.now(),
-                'stage_id': self.env['daruclima.fsm.stage'].search([
-                    ('code', '=', 'done'),
-                    ('company_id', 'in', [self.env.company.id, False])
-                ], limit=1).id
-            })
+        self.write({
+            'date_start': fields.Datetime.now(),
+        })
 
-    def action_create_invoice(self):
-        """Abre el wizard para crear factura"""
-        return {
-            'type': 'ir.actions.act_window',
-            'name': 'Crear Factura',
-            'res_model': 'daruclima.fsm.create.invoice',
-            'view_mode': 'form',
-            'target': 'new',
-            'context': {'default_fsm_order_id': self.id}
-        }
-
-    def action_request_materials(self):
-        """Abre el wizard para solicitar materiales"""
-        return {
-            'type': 'ir.actions.act_window',
-            'name': 'Solicitar Materiales',
-            'res_model': 'daruclima.fsm.material.request',
-            'view_mode': 'form',
-            'target': 'new',
-            'context': {'default_fsm_order_id': self.id}
-        }
-
-    def action_view_attachments(self):
-        """Abrir vista de adjuntos para esta orden FSM"""
-        self.ensure_one()
-        return {
-            'type': 'ir.actions.act_window',
-            'name': 'Adjuntos',
-            'res_model': 'ir.attachment',
-            'view_mode': 'tree,form',
-            'domain': [('res_model', '=', 'daruclima.fsm.order'), ('res_id', '=', self.id)],
-            'context': {
-                'default_res_model': 'daruclima.fsm.order',
-                'default_res_id': self.id,
-            }
-        }
-
-    def action_view_fsm_order(self):
-        """Abrir la Orden de Venta relacionada desde la orden FSM."""
-        self.ensure_one()
-        if not self.sale_order_id:
-            return False
-        return {
-            'type': 'ir.actions.act_window',
-            'res_model': 'sale.order',
-            'res_id': self.sale_order_id.id,
-            'view_mode': 'form',
-        }
-
-    @api.depends('repair_ids')
-    def _compute_repair_count(self):
-        """Calcula el número de órdenes de reparación"""
-        for record in self:
-            record.repair_count = len(record.repair_ids)
-
-    @api.depends('sale_order_id')
-    def _compute_quotation_count(self):
-        """Calcula el número de presupuestos/órdenes de venta"""
-        for record in self:
-            # Contar órdenes de venta en estado de presupuesto
-            quotations = self.env['sale.order'].search([
-                ('partner_id', '=', record.partner_id.id),
-                ('state', 'in', ['draft', 'sent']),
-                ('fsm_order_id', '=', record.id)
-            ])
-            record.quotation_count = len(quotations)
-
-    def action_create_repair_order(self):
-        """Crea una orden de reparación a partir de la orden de servicio"""
-        self.ensure_one()
-
-        # Verificar si ya existe una orden de reparación
-        existing_repair = self.env['repair.order'].search([
-            ('fsm_order_id', '=', self.id)
+        # Cambiar a etapa "En Progreso" si existe
+        progress_stage = self.env['daruclima.fsm.stage'].search([
+            ('code', '=', 'progress'),
+            ('company_id', 'in', [self.env.company.id, False])
         ], limit=1)
+        if progress_stage:
+            self.stage_id = progress_stage
 
-        if existing_repair:
-            return {
-                'type': 'ir.actions.act_window',
-                'name': 'Orden de Reparación',
-                'res_model': 'repair.order',
-                'res_id': existing_repair.id,
-                'view_mode': 'form',
-                'target': 'current',
-            }
+        return True
 
-        # Preparar valores para la orden de reparación (solo campos que existen)
+    def action_finish_work(self):
+        """Finaliza el trabajo"""
+        if not self.date_start:
+            raise UserError(_('Debe iniciar el trabajo antes de finalizarlo.'))
+
+        if self.date_end:
+            raise UserError(_('El trabajo ya ha sido finalizado.'))
+
+        self.write({
+            'date_end': fields.Datetime.now(),
+        })
+
+        # Cambiar a etapa "Completado" si existe
+        done_stage = self.env['daruclima.fsm.stage'].search([
+            ('code', '=', 'done'),
+            ('company_id', 'in', [self.env.company.id, False])
+        ], limit=1)
+        if done_stage:
+            self.stage_id = done_stage
+
+        return True
+
+    def action_print_order(self):
+        """Imprimir orden de trabajo"""
+        return self.env.ref('daruclima_fsm.action_report_fsm_order').report_action(self)
+
+    def action_create_repair(self):
+        """Crea un parte de reparación basado en la orden de trabajo"""
+        # Valores básicos para la creación de la reparación
         repair_vals = {
             'partner_id': self.partner_id.id,
-            'fsm_order_id': self.id,
-            'internal_notes': f"<p><strong>Orden FSM:</strong> {self.name}</p>" +
-                            f"<p><strong>Descripción:</strong> {self.description or ''}</p>" +
-                            (f"<p><strong>Notas internas:</strong> {self.internal_note}</p>" if self.internal_note else "") +
-                            (f"<p><strong>Notas del cliente:</strong> {self.customer_note}</p>" if self.customer_note else ""),
-            'company_id': self.company_id.id,
+            'fsm_order_id': self.id,  # Vincular con la orden FSM
+            'name': f'{self.description or _("Reparación desde Orden de Trabajo")} - Ref: {self.name}',
         }
 
-        # Si hay equipos definidos, tomar el primero como producto a reparar
-        if self.equipment_ids:
-            equipment = self.equipment_ids[0]
-            if hasattr(equipment, 'product_id') and equipment.product_id:
-                repair_vals['product_id'] = equipment.product_id.id
-                repair_vals['product_qty'] = 1.0
-                repair_vals['product_uom'] = equipment.product_id.uom_id.id
+        try:
+            repair_order = self.env['repair.order'].create(repair_vals)
 
-        # Crear la orden de reparación
-        repair_order = self.env['repair.order'].create(repair_vals)
-
-        # Añadir materiales como operaciones de reparación
-        for material in self.material_ids:
-            self.env['repair.line'].create({
-                'repair_id': repair_order.id,
-                'type': 'add',
-                'product_id': material.product_id.id,
-                'product_uom_qty': material.quantity,
-                'product_uom': material.product_id.uom_id.id,
-                'price_unit': material.cost_unit,
-                'name': material.product_id.name,
-            })
-
-        return {
-            'type': 'ir.actions.act_window',
-            'name': 'Orden de Reparación',
-            'res_model': 'repair.order',
-            'res_id': repair_order.id,
-            'view_mode': 'form',
-            'target': 'current',
-        }
-
-    def action_create_quotation(self):
-        """Crea un presupuesto a partir de la orden de servicio"""
-        self.ensure_one()
-
-        # Si ya existe una orden de venta/presupuesto, abrirla
-        if self.sale_order_id:
             return {
                 'type': 'ir.actions.act_window',
-                'name': 'Presupuesto',
-                'res_model': 'sale.order',
-                'res_id': self.sale_order_id.id,
+                'name': _('Parte de Reparación'),
+                'res_model': 'repair.order',
+                'res_id': repair_order.id,
                 'view_mode': 'form',
                 'target': 'current',
             }
+        except Exception as e:
+            raise UserError(_('Error al crear el parte de reparación: %s') % str(e))
 
-        # Preparar valores para el presupuesto (siempre en estado borrador)
-        quotation_vals = {
+    def action_view_repairs(self):
+        """Ver partes de reparación relacionados"""
+        if len(self.repair_order_ids) == 1:
+            return {
+                'type': 'ir.actions.act_window',
+                'name': _('Parte de Reparación'),
+                'res_model': 'repair.order',
+                'res_id': self.repair_order_ids.id,
+                'view_mode': 'form',
+                'target': 'current',
+            }
+        else:
+            return {
+                'type': 'ir.actions.act_window',
+                'name': _('Partes de Reparación'),
+                'res_model': 'repair.order',
+                'view_mode': 'list,form',
+                'domain': [('id', 'in', self.repair_order_ids.ids)],
+                'target': 'current',
+            }
+
+    def action_create_sale_order(self):
+        """Crea una orden de venta basada en la orden de trabajo"""
+        # Valores básicos para la creación de la orden de venta
+        sale_vals = {
             'partner_id': self.partner_id.id,
-            'fsm_order_id': self.id,
-            'origin': self.name,
-            'note': self.customer_note or '',
+            'fsm_order_id': self.id,  # Vincular con la orden FSM
+            'origin': f'{_("Orden de Trabajo")} - {self.name}',
+            'note': self.description,
             'company_id': self.company_id.id,
-            'date_order': fields.Datetime.now(),
-            'state': 'draft',  # Asegurar que se crea como presupuesto
         }
 
-        # Crear el presupuesto
-        quotation = self.env['sale.order'].create(quotation_vals)
+        # Si hay dirección de servicio, usarla como dirección de entrega
+        if self.location_id:
+            sale_vals['partner_shipping_id'] = self.location_id.id
 
-        # Añadir líneas basadas en los materiales utilizados
-        for material in self.material_ids:
-            self.env['sale.order.line'].create({
-                'order_id': quotation.id,
-                'product_id': material.product_id.id,
-                'product_uom_qty': material.quantity,
-                'product_uom': material.product_id.uom_id.id,
-                'price_unit': material.product_id.list_price,
-                'name': material.product_id.name,
-            })
+        try:
+            sale_order = self.env['sale.order'].create(sale_vals)
 
-        # Añadir línea de servicio si no hay materiales
-        if not self.material_ids:
-            # Buscar un producto de servicio genérico o crear línea manual
-            service_product = self.env['product.product'].search([
-                ('type', '=', 'service'),
-                ('name', 'ilike', 'servicio')
-            ], limit=1)
+            return {
+                'type': 'ir.actions.act_window',
+                'name': _('Orden de Venta'),
+                'res_model': 'sale.order',
+                'res_id': sale_order.id,
+                'view_mode': 'form',
+                'target': 'current',
+            }
+        except Exception as e:
+            raise UserError(_('Error al crear la orden de venta: %s') % str(e))
 
-            if service_product:
-                self.env['sale.order.line'].create({
-                    'order_id': quotation.id,
-                    'product_id': service_product.id,
-                    'product_uom_qty': 1.0,
-                    'product_uom': service_product.uom_id.id,
-                    'price_unit': service_product.list_price,
-                    'name': f"Servicio - {self.description[:50]}...",
-                })
-            else:
-                # Crear línea manual de servicio
-                self.env['sale.order.line'].create({
-                    'order_id': quotation.id,
-                    'product_uom_qty': 1.0,
-                    'price_unit': 0.0,
-                    'name': f"Servicio de Campo - {self.description[:50]}...",
-                })
-
-        # Actualizar la referencia en la orden FSM
-        self.sale_order_id = quotation.id
-
-        return {
-            'type': 'ir.actions.act_window',
-            'name': 'Presupuesto',
-            'res_model': 'sale.order',
-            'res_id': quotation.id,
-            'view_mode': 'form',
-            'target': 'current',
-        }
-
-    def action_view_repair_orders(self):
-        """Ver todas las órdenes de reparación relacionadas"""
-        self.ensure_one()
-        action = self.env.ref('repair.action_repair_order_tree').read()[0]
-
-        if len(self.repair_ids) > 1:
-            action['domain'] = [('id', 'in', self.repair_ids.ids)]
-        elif self.repair_ids:
-            action['views'] = [(self.env.ref('repair.view_repair_order_form').id, 'form')]
-            action['res_id'] = self.repair_ids.id
+    def action_view_sale_orders(self):
+        """Ver órdenes de venta relacionadas"""
+        if len(self.sale_order_ids) == 1:
+            return {
+                'type': 'ir.actions.act_window',
+                'name': _('Orden de Venta'),
+                'res_model': 'sale.order',
+                'res_id': self.sale_order_ids.id,
+                'view_mode': 'form',
+                'target': 'current',
+            }
         else:
-            action = {'type': 'ir.actions.act_window_close'}
-
-        return action
-
-    def action_view_quotations(self):
-        """Ver todos los presupuestos relacionados"""
-        self.ensure_one()
-        action = self.env.ref('sale.action_quotations_with_onboarding').read()[0]
-
-        quotations = self.env['sale.order'].search([
-            ('partner_id', '=', self.partner_id.id),
-            ('fsm_order_id', '=', self.id)
-        ])
-
-        if len(quotations) > 1:
-            action['domain'] = [('id', 'in', quotations.ids)]
-        elif quotations:
-            action['views'] = [(self.env.ref('sale.view_order_form').id, 'form')]
-            action['res_id'] = quotations.id
-        else:
-            action = {'type': 'ir.actions.act_window_close'}
-
-        return action
-
-
-class DaruclimeFSMMaterial(models.Model):
-    _name = 'daruclima.fsm.material'
-    _description = 'Material utilizado en orden de servicio'
-
-    order_id = fields.Many2one(
-        'daruclima.fsm.order',
-        string='Orden de Servicio',
-        required=True,
-        ondelete='cascade'
-    )
-    product_id = fields.Many2one(
-        'product.product',
-        string='Producto',
-        required=True
-    )
-    quantity = fields.Float(
-        string='Cantidad',
-        default=1.0,
-        required=True
-    )
-    cost_unit = fields.Monetary(
-        string='Costo Unitario',
-        currency_field='currency_id'
-    )
-    cost_total = fields.Monetary(
-        string='Costo Total',
-        compute='_compute_cost_total',
-        store=True,
-        currency_field='currency_id'
-    )
-    currency_id = fields.Many2one(
-        'res.currency',
-        related='order_id.currency_id'
-    )
-
-    @api.depends('quantity', 'cost_unit')
-    def _compute_cost_total(self):
-        for record in self:
-            record.cost_total = record.quantity * record.cost_unit
-
-    @api.onchange('product_id')
-    def _onchange_product_id(self):
-        if self.product_id:
-            self.cost_unit = self.product_id.standard_price
+            return {
+                'type': 'ir.actions.act_window',
+                'name': _('Órdenes de Venta'),
+                'res_model': 'sale.order',
+                'view_mode': 'list,form',
+                'domain': [('id', 'in', self.sale_order_ids.ids)],
+                'target': 'current',
+            }

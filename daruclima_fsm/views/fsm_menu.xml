@@ -32,34 +32,10 @@
                   parent="menu_daruclima_fsm_main"
                   sequence="20"/>
 
-        <menuitem id="menu_daruclima_fsm_teams"
-                  name="Equipos"
-                  parent="menu_daruclima_fsm_planning"
-                  action="action_daruclima_fsm_team"
-                  sequence="10"/>
-
         <menuitem id="menu_daruclima_fsm_persons"
                   name="Técnicos"
                   parent="menu_daruclima_fsm_planning"
                   action="action_daruclima_fsm_person"
-                  sequence="20"/>
-
-        <!-- Menú de clientes -->
-        <menuitem id="menu_daruclima_fsm_customers"
-                  name="Clientes"
-                  parent="menu_daruclima_fsm_main"
-                  sequence="30"/>
-
-        <menuitem id="menu_daruclima_fsm_locations"
-                  name="Ubicaciones"
-                  parent="menu_daruclima_fsm_customers"
-                  action="action_daruclima_fsm_location"
-                  sequence="10"/>
-
-        <menuitem id="menu_daruclima_fsm_equipment"
-                  name="Equipos"
-                  parent="menu_daruclima_fsm_customers"
-                  action="action_daruclima_fsm_equipment"
                   sequence="20"/>
 
         <!-- Menú de configuración -->
