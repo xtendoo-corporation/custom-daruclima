@@ -82,17 +82,17 @@
 
                     <!-- Información del cliente -->
                     <div class="row mt32 mb32">
-                        <div class="col-auto mw-100 mb-2">
+                        <div class="col-4 mb-2">
                             <strong>Cliente:</strong>
                             <div t-field="doc.partner_id"
                                 t-options='{"widget": "contact", "fields": ["address", "name", "phone"], "no_marker": True, "phone_icons": True}'/>
                         </div>
-                        <div class="col-auto mw-100 mb-2" t-if="doc.contact_id">
+                        <div class="col-4 mb-2" t-if="doc.contact_id">
                             <strong>Contacto:</strong>
                             <div t-field="doc.contact_id"
                                 t-options='{"widget": "contact", "fields": ["name", "phone", "email"], "no_marker": True, "phone_icons": True}'/>
                         </div>
-                        <div class="col-auto mw-100 mb-2" t-if="doc.location_id">
+                        <div class="col-4 mb-2" t-if="doc.location_id">
                             <strong>Ubicación del Servicio:</strong>
                             <div>
                                 <span t-field="doc.location_id.name"/><br/>

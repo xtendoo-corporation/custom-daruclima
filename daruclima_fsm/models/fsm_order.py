@@ -35,13 +35,13 @@ class DaruclimeFSMOrder(models.Model):
         'res.partner',
         string='Dirección del Servicio',
         tracking=True,
-        domain="[('parent_id', '=', partner_id), ('type', '=', 'delivery')]",
+        domain="[('parent_id', '=', partner_id)]",
         help="Dirección de entrega donde se realizará el servicio"
     )
     contact_id = fields.Many2one(
         'res.partner',
-        string='Persona de Contacto',
-        help="Persona de contacto en la ubicación del servicio"
+        string='Contacto',
+        help="Persona o empresa de contacto en la ubicación del servicio"
     )
 
     # Información del servicio
