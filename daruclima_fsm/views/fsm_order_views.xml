@@ -65,7 +65,7 @@
                             <group name="customer_info" string="Información del Cliente">
                                 <field name="partner_id" required="1"/>
                                 <field name="contact_id" domain="[('parent_id', '=', partner_id)]"/>
-                                <field name="location_id" domain="[('parent_id', '=', partner_id), ('type', '=', 'delivery')]"/>
+                                <field name="location_id" domain="[('parent_id', '=', partner_id)]"/>
                             </group>
                             <group name="service_info" string="Información del Trabajo">
                                 <field name="responsible_id"/>
